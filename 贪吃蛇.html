@@ -1,16 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <mate http-equiv="X-UA-Compatible" content="ie=edge"></mate>
     <title>贪吃蛇</title>
     <style>
-        *{
+        * {
             margin: 0;
             padding: 0;
         }
-        #container{
+
+        #container {
             width: 1280px;
             height: 730px;
             background: url(img/bg.jpg);
@@ -19,7 +21,8 @@
             margin: 0 auto;
             position: relative;
         }
-        #map-panel{
+
+        #map-panel {
             width: 631px;
             height: 421px;
             /* background: #cccccc; */
@@ -27,27 +30,36 @@
             left: 130px;
             top: 130px;
         }
-        #map-bg{
+
+        #map-bg {
             /* 可以让单元格合并到一起 */
             border-collapse: collapse;
         }
-        #map-bg td{
+
+        #map-bg td {
             width: 20px;
             height: 20px;
             border: 1px solid #888;
         }
-        .snake{
+
+        .snake {
             width: 20px;
             height: 20px;
             /* rgb也是一个设置颜色的 */
-            background: rgb(0,255,255);
+            background: rgb(0, 255, 255);
+            /* 定位蛇的初始位置 */
+            position: absolute;
+            top: 64px;
         }
-        .food{
+
+        .food {
             width: 20px;
             height: 20px;
-            background: rgb(255,255,0);
+            background: rgb(255, 255, 0);
+            position: absolute;
         }
-        #control-panel{
+
+        #control-panel {
             width: 196px;
             height: 500px;
             /* background: #cccccc; */
@@ -57,52 +69,84 @@
             /* 按钮元素默认是行级元素 所以使用这个居中 */
             text-align: center;
         }
-        #control-panel button{
+
+        #control-panel button {
             width: 178px;
             height: 52px;
             margin-bottom: 20px;
             /* 按钮默认会有边框，用这个清除 */
             border: 0;
         }
-        #btn-start{
+
+        #btn-start {
             background: url(img/start-game.png);
         }
-        #btn-setting{
+
+        #btn-setting {
             background: url(img/game-setting.png);
         }
-        #btn-quit{
+
+        #btn-quit {
             background: url(img/quit-game.png);
         }
-        #btn-help{
+
+        #btn-help {
             background: url(img/help.png);
         }
-        #speed-panel{
+
+        #speed-panel {
             width: 196px;
             height: 204px;
             background: url(img/speed-panel.png);
         }
+
+        #alert-mask{
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: #000000;
+            /* 透明度 范围0-1 本处半透明 */
+            opacity: 0.5;
+            display: none;
+        }
+        #alert{
+            width: 300px;
+            height: 200px;
+            background: #fff;
+            display: none;
+            position: absolute;
+            left: 50%;
+            margin-left: -150px;
+            top: 50%;
+            margin-top: -100px;
+        }
+        #alert-header{
+            height: 30px;
+            background: #cccccc;
+        }
+        #btn-alert-close{
+            float: right;
+            margin-top: 6px;
+            margin-right: 6px;
+            border: 0;
+            background: #cccccc;
+            /* 当鼠标滑倒这里变成小手状 */
+            cursor: pointer;
+        }
     </style>
 </head>
+
 <body>
 
     <!-- div#container输入这个快捷键在按回车 id 就会直接出来 比较方便 -->
     <div id="container">
         <div id="map-panel">
-            <table id="map-bg"> 
-                <!-- 等到讲js 的时候在动态往里插 所以先删掉 -->
-                    <!-- <tr>
-                        <td></td>
-                        <td></td>
-                        <td></td>
-                    </tr>
-                    <tr>
-                        <td></td>
-                        <td></td>
-                        <td></td>
-                    </tr> -->
+            <table id="map-bg">
             </table>
             <!-- div.snake*3 在按回车生成 -->
-             <!-- 等到讲js 的时候在动态生成 所以先删掉 -->
+            <!-- 等到讲js 的时候在动态生成 所以先删掉 -->
             <!-- <div class="snake"></div>
             <div class="snake"></div>
             <div class="snake"></div>
@@ -118,5 +162,199 @@
         </div>
     </div>
 
+    <!-- 是为了解决兼容性的问题，自己设置出来的提示框 -->
+    <div id="alert-mask"></div>
+    <div id="alert">
+        <div id="alert-header">
+            <button id="btn-alert-close">[x]</button>
+        </div>
+        <div id="alert-content">
+            Game over!
+        </div>
+    </div>
+
+    <script>
+
+        // 获取元素
+        var oMapPanel = document.getElementById('map-panel');
+        var oMapTable = document.getElementById('map-bg');
+        var oBtnStart = document.getElementById('btn-start');
+        var oAlertMask = document.getElementById('alert-mask');
+        var oAlert = document.getElementById('alert');
+        var oBtnAlertClose = document.getElementById('btn-alert-close');
+
+        var direction = 'right';
+        var timer, oFood;
+
+        // 1.初始化地图
+        for (var row = 0; row < 20; row++) {
+            // 创建一个tr标签
+            var oTr = document.createElement('tr');
+            for (var col = 0; col < 30; col++) {
+                // 创建一个td标签
+                var oTd = document.createElement('td');
+                // 将td标签插入tr标签
+                oTr.appendChild(oTd);
+            }
+            // 将tr插入table标签
+            oMapTable.appendChild(oTr);
+        }
+
+        // 2.初始化蛇
+        // 创建一个数组
+        var snakeBody = [];
+        for (var i = 2; i >= 0; i--) {
+            var oDiv = document.createElement('div');
+            // 给div创建一个class为蛇的类
+            oDiv.className = 'snake';
+            oDiv.style.left = i * 20 + (i + 1) + 'px';
+            oMapPanel.appendChild(oDiv);
+            // 自定义一个pos(位置)属性，并把这个属性定义成一个对象
+            oDiv.pos = {
+                left: i * 20 + (i + 1),
+                top: 64
+            };
+            // 存入数组
+            snakeBody.push(oDiv);
+        }
+
+        // 3.初始化食物
+        // 多次利用的代码封装到函数里
+        function produceFood() {
+            do {
+                var bFlag = true; //一标识位，用来控制循环是否结束,初始值为true,为true代表找到了合适的坐标
+                // 计算食物坐标
+                var iLeft = parseInt(Math.random() * 30);  //0-29
+                iLeft = iLeft * 21 + 1;
+
+                var iTop = parseInt(Math.random() * 20);  //0-19
+                iTop = iTop * 21 + 1;
+
+                // 判断是否和蛇的身体重复
+                for (var i = 0; i < snakeBody.length; i++) {
+                    if (snakeBody[i].offsetLeft == iLeft && snakeBody[i].offsetTop == iTop) {
+                        // 没找到合适的坐标，为false
+                        bFlag = false;
+                    }
+                }
+
+                oFood = document.createElement('div');
+                oFood.className = 'food';
+                oFood.style.left = iLeft + 'px';
+                oFood.style.top = iTop + 'px';
+
+                oFood.pos = {
+                    left: iLeft,
+                    top: iTop
+                };
+
+                oMapPanel.appendChild(oFood);
+            } while (!bFlag);
+        }
+        produceFood();
+
+
+        oBtnStart.onclick = function () {
+            // 解决多次点击开始游戏按钮时，蛇的移动速度会增加的问题
+            if (!timer) {
+                timer = setInterval(function () {
+                    snakeMove();
+                }, 300);
+            }
+        };
+
+        // 把重复利用的代码封装到函数里
+        function snakeMove() {
+            var snakeHead = snakeBody[0];//取出蛇头
+
+            if (direction == 'down') {
+                snakeHead.style.top = snakeHead.offsetTop + 21 + 'px';
+            } else if (direction == 'right') {
+                snakeHead.style.left = snakeHead.offsetLeft + 21 + 'px';
+            } else if (direction == 'up') {
+                snakeHead.style.top = snakeHead.offsetTop - 21 + 'px';
+            } else if (direction == 'left') {
+                snakeHead.style.left = snakeHead.offsetLeft - 21 + 'px';
+            }
+
+
+            //蛇吃食物和增长身体
+            if (snakeHead.offsetLeft == oFood.offsetLeft &&
+                snakeHead.offsetTop == oFood.offsetTop) {
+                // 将食物改变为蛇的样式
+                oFood.className = 'snake';
+                // 这样就将蛇头空出来的位置补上了
+                oFood.style.left = snakeHead.pos.left + 'px';
+                oFood.style.top = snakeHead.pos.top + 'px';
+                //snakeBody.push(oFood);
+                // 为了完善蛇在吃食物的时候缩一下脖子的问题，执行的功能也是将食物插入身体的数组
+                snakeBody.splice(1, 0, oFood);
+                produceFood();
+                // 通过else让蛇迟到食物后，就不再身体向前移动
+            } else {
+                // 让蛇身往后的部分向身体的前一节移动
+                for (var i = 1; i < snakeBody.length; i++) {
+                    snakeBody[i].style.left = snakeBody[i - 1].pos.left + 'px';
+                    snakeBody[i].style.top = snakeBody[i - 1].pos.top + 'px';
+                }
+            }
+
+            // 将蛇移动后的当前位置更新
+            for (var i = 0; i < snakeBody.length; i++) {
+                snakeBody[i].pos.left = snakeBody[i].offsetLeft;
+                snakeBody[i].pos.top = snakeBody[i].offsetTop;
+            }
+
+            // 蛇吃自己
+            for (var i = 4; i < snakeBody.length; i++) {
+                if (snakeHead.offsetLeft == snakeBody[i].offsetLeft
+                    && snakeHead.offsetTop == snakeBody[i].offsetTop) {
+                    alert('你个大傻子，吃自己干嘛?!');
+                    clearInterval(timer);
+                }
+            }
+
+            // 吃到边界
+            if (snakeHead.offsetLeft == -20 || snakeHead.offsetLeft == 631
+                || snakeHead.offsetTop == -20 || snakeHead.offsetTop == 421) {
+                    // alert('Game over!');
+                    // 把提示框显示出来
+                    oAlertMask.style.display = 'block';
+                    oAlert.style.display = 'block';
+                    clearInterval(timer);
+            }
+
+        }
+
+        document.onkeydown = function (e) {
+            e = e || window.event;//处理兼容
+            var key = e.which || e.keyCode; //获取键盘码  且处理兼容
+            if (key == 40) {//down
+                if (direction != 'up') {
+                    direction = 'down';
+                }
+            } else if (key == 39) {
+                if (direction != 'left') {
+                    direction = 'right';
+                }
+            } else if (key == 38) {
+                if (direction != 'down') {
+                    direction = 'up';
+                }
+            } else if (key == 37) {
+                if (direction != 'right') {
+                    direction = 'left';
+                }
+            }
+            // 在这里调用函数，实现当按下键盘不松手的时候，蛇加速移动的功能
+            snakeMove();
+        };
+
+        oBtnAlertClose.onclick = function(){
+            oAlertMask.style.display = 'none';
+            oAlert.style.display = 'none';
+        }
+    </script>
 </body>
+
 </html>
